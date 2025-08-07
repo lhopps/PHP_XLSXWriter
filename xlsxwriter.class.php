@@ -31,8 +31,8 @@ class XLSXWriter
 	{
 		defined('ENT_XML1') or define('ENT_XML1',16);//for php 5.3, avoid fatal error
 		date_default_timezone_get() or date_default_timezone_set('UTC');//php.ini missing tz, avoid warning
-		is_writeable($this->tempFilename()) or self::log("Warning: tempdir ".sys_get_temp_dir()." not writeable, use ->setTempDir()");
-		class_exists('ZipArchive') or self::log("Error: ZipArchive class does not exist");
+		is_writeable($this->tempFilename()) or self::log("Warning: tempdir ".sys_get_temp_dir()." not writeable, use ->setTempDir()", LOG_WARNING);
+		class_exists('ZipArchive') or self::log("Error: ZipArchive class does not exist", LOG_WARNING);
 		$this->addCellStyle($number_format='GENERAL', $style_string=null);
 	}
 
@@ -94,13 +94,13 @@ class XLSXWriter
 			if ( is_writable( $filename ) ) {
 				@unlink( $filename ); //if the zip already exists, remove it
 			} else {
-				self::log( "Error in " . __CLASS__ . "::" . __FUNCTION__ . ", file is not writeable." );
+				self::log( "Error in " . __CLASS__ . "::" . __FUNCTION__ . ", file is not writeable.", LOG_WARNING );
 				return;
 			}
 		}
 		$zip = new ZipArchive();
-		if (empty($this->sheets))                       { self::log("Error in ".__CLASS__."::".__FUNCTION__.", no worksheets defined."); return; }
-		if (!$zip->open($filename, ZipArchive::CREATE)) { self::log("Error in ".__CLASS__."::".__FUNCTION__.", unable to create zip."); return; }
+		if (empty($this->sheets))                       { self::log("Error in ".__CLASS__."::".__FUNCTION__.", no worksheets defined.", LOG_WARNING); return; }
+		if (!$zip->open($filename, ZipArchive::CREATE)) { self::log("Error in ".__CLASS__."::".__FUNCTION__.", unable to create zip.", LOG_WARNING); return; }
 
 		$zip->addEmptyDir("docProps/");
 		$zip->addFromString("docProps/app.xml" , self::buildAppXML() );
@@ -223,7 +223,7 @@ class XLSXWriter
 		$suppress_row = isset($col_options['suppress_row']) ? intval($col_options['suppress_row']) : false;
 		if (is_bool($col_options))
 		{
-			self::log( "Warning! passing $suppress_row=false|true to writeSheetHeader() is deprecated, this will be removed in a future version." );
+			self::log( "Warning! passing $suppress_row=false|true to writeSheetHeader() is deprecated, this will be removed in a future version.", LOG_NOTICE );
 			$suppress_row = intval($col_options);
 		}
 		$style = &$col_options;
@@ -737,10 +737,14 @@ class XLSXWriter
 		return $r . ($row_number+1);
 	}
 	//------------------------------------------------------------------
-	public static function log($string)
+	/**
+	 * @param string $string Message
+	 * @param int $errorLevel LOG_EMERG|LOG_ALERT|LOG_CRIT|LOG_ERR|LOG_WARNING|LOG_NOTICE|LOG_INFO|LOG_DEBUG
+	 */
+	public static function log($string, int $errorLevel = LOG_INFO)
 	{
-		//file_put_contents("php://stderr", date("Y-m-d H:i:s:").rtrim(is_array($string) ? json_encode($string) : $string)."\n");
-		error_log(date("Y-m-d H:i:s:").rtrim(is_array($string) ? json_encode($string) : $string)."\n");
+		$message = date("Y-m-d H:i:s:") . rtrim(is_array($string) ? json_encode($string) : $string) . PHP_EOL;
+		syslog($errorLevel, $message);
 	}
 	//------------------------------------------------------------------
 	public static function sanitize_filename($filename) //http://msdn.microsoft.com/en-us/library/aa365247%28VS.85%29.aspx
@@ -910,7 +914,7 @@ class XLSXWriter_BuffererWriter
 		$this->check_utf8 = $check_utf8;
 		$this->fd = fopen($filename, $fd_fopen_flags);
 		if ($this->fd===false) {
-			XLSXWriter::log("Unable to open $filename for writing.");
+			XLSXWriter::log("Unable to open $filename for writing.", LOG_WARNING);
 		}
 	}
 
@@ -926,7 +930,7 @@ class XLSXWriter_BuffererWriter
 	{
 		if ($this->fd) {
 			if ($this->check_utf8 && !self::isValidUTF8($this->buffer)) {
-				XLSXWriter::log("Error, invalid UTF8 encoding detected.");
+				XLSXWriter::log("Error, invalid UTF8 encoding detected.", LOG_WARNING);
 				$this->check_utf8 = false;
 			}
 			fwrite($this->fd, $this->buffer);
