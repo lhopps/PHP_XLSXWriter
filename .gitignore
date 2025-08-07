@@ -1,3 +1,4 @@
 vendor
 .idea
 examples/*.xlsx
+.DS_Store
